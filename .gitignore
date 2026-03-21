@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Environnement virtuel
+venv/
+env/
+.env
+
+# Modèles TTS (trop lourds pour GitHub)
+kokoro-v1.0.onnx
+voices-v1.0.bin
+*.onnx
+*.onnx.json
+
+# Modèles PaddleOCR (téléchargés automatiquement)
+.paddlex/
+inference/
+
+# Fichiers temporaires
+*.jpg
+*.tmp
+temp/
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
