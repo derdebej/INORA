@@ -19,6 +19,9 @@ voices-v1.0.bin
 .paddlex/
 inference/
 
+# vosk
+vosk-model*/
+
 # Fichiers temporaires
 *.jpg
 *.tmp

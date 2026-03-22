@@ -2,12 +2,17 @@
 INORA - Main
 =============
 Point d'entrée principal du projet.
-Orchestre la caméra, le module OCR et le module TTS ensemble.
+Orchestre la caméra, le module OCR, TTS et reconnaissance vocale.
 
 Lancement :
   python main.py
 
-Quitter : appuie sur  Q  dans la fenêtre caméra
+Contrôles :
+  Clavier : Q → quitter | S → interrompre TTS | T → toggle TTS
+  Voix    : "INORA" → écoute naturelle
+            "lis"   → lecture OCR immédiate
+            "stop"  → interrompt TTS
+            "répète"→ répète le dernier texte
 """
 
 import cv2
@@ -15,10 +20,10 @@ import logging
 import time
 import threading
 
-from inora_ocr import INORAOcr
-from inora_tts import INORASpeaker, INORAMessages
+from inora_ocr   import INORAOcr
+from inora_tts   import INORASpeaker, INORAMessages
+from inora_voice import INORAVoice
 
-# ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="[%(name)s] %(levelname)s: %(message)s"
@@ -27,126 +32,234 @@ log = logging.getLogger("INORA_MAIN")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Configuration centrale — modifie ici pour adapter le comportement
+# Configuration centrale
 # ─────────────────────────────────────────────────────────────────────────────
 CONFIG = {
-    "lang":                 "fr",   # langue OCR + TTS : "en" ou "fr"
-    "camera_index":         1,      # 0 = webcam par défaut
-    "ocr_confidence":       0.8,    # seuil de confiance OCR (0.0 à 1.0)
-    "ocr_repeat_delay":     10.0,   # secondes avant de répéter le même texte
-    "tts_repeat_delay":     3.0,    # secondes avant de répéter le même message
-    "show_window":          True,   # afficher la fenêtre caméra annotée
-    "interrupt_key":        "s",    # touche S → interrompt la lecture
-    "toggle_key":           "t",    # touche T → active/désactive le TTS
-                                    # Sur Jetson : remplacer par bouton GPIO
+    "lang":             "fr",    # langue OCR + TTS + voix : "fr" ou "en"
+    "camera_index":     1,       # 0 = webcam par défaut
+    "ocr_confidence":   0.8,     # seuil de confiance OCR (0.0 à 1.0)
+    "ocr_repeat_delay": 10.0,    # secondes avant de répéter le même texte
+    "show_window":      True,    # afficher la fenêtre caméra annotée
+    "interrupt_key":    "s",     # touche S → interrompt TTS
+    "toggle_key":       "t",     # touche T → active/désactive TTS
 }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Boucle principale
+# Gestionnaire de commandes vocales
 # ─────────────────────────────────────────────────────────────────────────────
-def listen_for_interrupt(tts: INORASpeaker, ocr: "INORAOcr", stop_event: threading.Event):
+def make_command_handler(tts: INORASpeaker, ocr: INORAOcr, voice: INORAVoice):
     """
-    Thread qui écoute la touche d'interruption clavier.
-    Sur Jetson : remplacer par détection GPIO.
+    Retourne la fonction qui traite les commandes reconnues par Vosk.
 
-    Touche S → interrompt la lecture TTS en cours
+    Actions possibles :
+      wake    → confirme l'écoute ("Je t'écoute")
+      read    → force la lecture du dernier texte OCR collecté
+      stop    → interrompt le TTS
+      repeat  → répète le dernier texte lu
+      lang_fr → passe en français
+      lang_en → passe en anglais
+      quit    → arrête INORA
+      natural → langage naturel (phrase complète après "INORA")
     """
+    lang = CONFIG["lang"]
+
+    # Réponses aux commandes naturelles courantes
+    NATURAL_RESPONSES_FR = {
+        "que vois tu":          lambda: tts.say(ocr._last_sent or "Je ne vois rien pour le moment"),
+        "qu est ce que tu vois":lambda: tts.say(ocr._last_sent or "Je ne vois rien pour le moment"),
+        "lis le texte":         lambda: tts.say(ocr._last_sent or "Aucun texte détecté"),
+        "quelle heure est il":  lambda: tts.say(time.strftime("Il est %H heures %M")),
+        "what time is it":      lambda: tts.say(time.strftime("It is %H:%M")),
+    }
+
+    def handle(action: str, phrase: str):
+        nonlocal lang
+        msg = INORAMessages
+
+        if action == "wake":
+            response = "Je t'écoute" if lang == "fr" else "I'm listening"
+            tts._enabled = True
+            tts.say(response, priority="urgent")
+
+        elif action == "read":
+            last = ocr._last_sent
+            if last:
+                tts._enabled = True
+                tts.say(msg.get("ocr_reading", lang, text=last), priority="high")
+            else:
+                tts.say("Aucun texte disponible" if lang == "fr" else "No text available")
+
+        elif action == "stop":
+            tts.interrupt()
+
+        elif action == "toggle_on":
+            if not tts.enabled:
+                tts.toggle(ocr=ocr)
+                log.info("TTS activé par commande vocale.")
+            else:
+                tts.say("INORA est déjà actif" if lang == "fr" else "INORA is already active")
+
+        elif action == "toggle_off":
+            if tts.enabled:
+                tts.toggle()
+                log.info("TTS désactivé par commande vocale.")
+            else:
+                # Joue directement car TTS désactivé
+                threading.Thread(
+                    target=lambda: __import__('inora_tts').speak_now(
+                        "INORA est déjà désactivé" if lang == "fr" else "INORA is already inactive",
+                        tts.lang
+                    ), daemon=True
+                ).start()
+
+        elif action == "repeat":
+            if phrase:
+                tts._enabled = True
+                tts.say(phrase, priority="high")
+            else:
+                tts.say("Rien à répéter" if lang == "fr" else "Nothing to repeat")
+
+        elif action == "lang_fr":
+            lang = "fr"
+            CONFIG["lang"] = "fr"
+            tts.set_language("fr")
+            ocr.lang = "fr"
+            voice.set_language("fr")
+            tts.say("Langue changée en français", priority="urgent")
+
+        elif action == "lang_en":
+            lang = "en"
+            CONFIG["lang"] = "en"
+            tts.set_language("en")
+            ocr.lang = "en"
+            voice.set_language("en")
+            tts.say("Language switched to English", priority="urgent")
+
+        elif action == "quit":
+            tts.say("Au revoir" if lang == "fr" else "Goodbye", priority="urgent")
+            time.sleep(2)
+            import os; os._exit(0)
+
+        elif action == "natural":
+            # Cherche une correspondance dans les réponses naturelles
+            phrase_clean = phrase.lower().strip()
+            matched = False
+            for key, fn in NATURAL_RESPONSES_FR.items():
+                if key in phrase_clean:
+                    tts._enabled = True
+                    fn()
+                    matched = True
+                    break
+            if not matched:
+                # Commande non reconnue
+                response = "Je n'ai pas compris" if lang == "fr" else "I didn't understand"
+                tts.say(response, priority="normal")
+
+    return handle
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Thread clavier (interruption / toggle)
+# ─────────────────────────────────────────────────────────────────────────────
+def listen_keyboard(tts: INORASpeaker, ocr: INORAOcr, stop_event: threading.Event):
     import sys
     try:
-        import msvcrt   # Windows uniquement
+        import msvcrt
         while not stop_event.is_set():
             if msvcrt.kbhit():
                 key = msvcrt.getch().decode("utf-8", errors="ignore").lower()
                 if key == CONFIG["interrupt_key"]:
-                    log.info("Interruption TTS demandée.")
                     tts.interrupt()
                 elif key == CONFIG["toggle_key"]:
                     tts.toggle(ocr=ocr)
-                    status = "activé" if tts.enabled else "désactivé"
-                    log.info(f"TTS {status}.")
+                    log.info(f"TTS {'activé' if tts.enabled else 'désactivé'}.")
             time.sleep(0.05)
     except ImportError:
-        # Linux/Jetson — utilise termios
         import tty, termios
         fd = sys.stdin.fileno()
-        old_settings = termios.tcgetattr(fd)
+        old = termios.tcgetattr(fd)
         try:
             tty.setraw(fd)
             while not stop_event.is_set():
                 ch = sys.stdin.read(1).lower()
                 if ch == CONFIG["interrupt_key"]:
-                    log.info("Interruption TTS demandée.")
                     tts.interrupt()
                 elif ch == CONFIG["toggle_key"]:
                     tts.toggle(ocr=ocr)
-                    status = "activé" if tts.enabled else "désactivé"
-                    log.info(f"TTS {status}.")
         finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Main
+# ─────────────────────────────────────────────────────────────────────────────
 def main():
     log.info("Démarrage INORA...")
-
-    # ── Initialisation des modules ────────────────────────────────────────────
     lang = CONFIG["lang"]
 
+    # ── Initialisation TTS ────────────────────────────────────────────────────
     tts = INORASpeaker(lang=lang)
-    # Annonce de démarrage — forcée même si TTS désactivé par défaut
     tts._enabled = True
     tts.say(INORAMessages.get("system_ready", lang), priority="urgent")
-    tts._enabled = False   # remet en attente — l'utilisateur active avec T
+    tts._enabled = False   # désactivé — l'utilisateur active avec T ou la voix
 
+    # ── Initialisation OCR ────────────────────────────────────────────────────
     ocr = INORAOcr(
         lang=lang,
         confidence_threshold=CONFIG["ocr_confidence"],
         repeat_delay=CONFIG["ocr_repeat_delay"],
     )
 
+    # ── Initialisation Voice ──────────────────────────────────────────────────
+    voice = INORAVoice(lang=lang)
+    handler = make_command_handler(tts, ocr, voice)
+    voice.command_handler = handler
+    voice.start()
+
+    # ── Caméra ───────────────────────────────────────────────────────────────
     cap = cv2.VideoCapture(CONFIG["camera_index"])
     if not cap.isOpened():
         log.error("Impossible d'ouvrir la caméra.")
         tts.stop()
+        voice.stop()
         return
 
-    log.info(f"Caméra ouverte. Appuie sur Q pour quitter, {CONFIG['interrupt_key'].upper()} pour interrompre le TTS.")
+    log.info("INORA prêt — commandes : Q=quitter | T=toggle | S=stop | Voix='INORA'")
 
-    # ── Thread d'interruption clavier ────────────────────────────────────────
+    # ── Thread clavier ────────────────────────────────────────────────────────
     stop_event = threading.Event()
-    interrupt_thread = threading.Thread(
-        target=listen_for_interrupt,
+    threading.Thread(
+        target=listen_keyboard,
         args=(tts, ocr, stop_event),
-        daemon=True,
-        name="Interrupt-Listener"
-    )
-    interrupt_thread.start()
+        daemon=True, name="Keyboard-Listener"
+    ).start()
 
     # ── Boucle caméra ─────────────────────────────────────────────────────────
     while True:
         ret, frame = cap.read()
         if not ret:
-            log.warning("Frame caméra non reçue, nouvelle tentative...")
             time.sleep(0.1)
             continue
 
-        # ── OCR ───────────────────────────────────────────────────────────────
+        # OCR
         text, annotated_frame = ocr.process(frame)
-
         if text:
             log.info(f"Texte détecté : {text!r}")
+            voice.set_last_text(text)   # mémorise pour la commande "répète"
             message = INORAMessages.get("ocr_reading", lang, text=text)
             tts.say(message, priority="normal")
 
-        # ── Affichage ─────────────────────────────────────────────────────────
+        # Affichage
         if CONFIG["show_window"]:
-            cv2.imshow("INORA — OCR temps réel  (Q pour quitter)", annotated_frame)
+            cv2.imshow("INORA — Q:quitter | T:toggle | S:stop | Voix:'INORA'", annotated_frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
-                log.info("Arrêt demandé par l'utilisateur.")
+                log.info("Arrêt demandé.")
                 break
 
     # ── Nettoyage ─────────────────────────────────────────────────────────────
     stop_event.set()
+    voice.stop()
     cap.release()
     cv2.destroyAllWindows()
     tts.stop()
@@ -154,17 +267,12 @@ def main():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Intégration future — exemple pour tes camarades
+# Intégration modules camarades
 # ─────────────────────────────────────────────────────────────────────────────
-# Quand les modules de tes camarades seront prêts, ils s'intègrent ici :
+# from inora_obstacle import INORAObstacle
+# from inora_currency import INORACurrency
 #
-#   from inora_obstacle import INORAObstacle
-#   from inora_currency import INORACurrency
-#
-#   obstacle = INORAObstacle()
-#   currency = INORACurrency()
-#
-#   # Dans la boucle while :
+# Dans la boucle while :
 #   direction, dist = obstacle.process(frame)
 #   if direction:
 #       tts.say_urgent(INORAMessages.get(f"obstacle_{direction}", lang, dist=dist))
