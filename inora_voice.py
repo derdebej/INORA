@@ -130,6 +130,46 @@ class INORAVoice:
 
     # ── Chargement modèle ────────────────────────────────────────────────────
 
+    # Corrections phonétiques — variantes mal reconnues → mot correct
+    PHONETIC_FR = {
+        # INORA mal transcrit
+        "il n'aura":    "inora",
+        "il nora":      "inora",
+        "in aura":      "inora",
+        "inora":        "inora",
+        "il laura":     "inora",
+        "il n aura":    "inora",
+        "énora":        "inora",
+        "ainora":       "inora",
+        # Commandes mal transcrites
+        "lise":         "lis",
+        "lit":         "lis",
+        "lys":          "lis",
+        "répète":       "répète",
+        "répètes":      "répète",
+        "répète moi":   "répète",
+        "active":       "activer",
+        "activez":       "activer",
+        "activé":       "activer",
+        "désactive":    "désactiver",
+        "désactivé":    "désactiver",
+    }
+
+    PHONETIC_EN = {
+        # INORA mal transcrit
+        "in aura":      "inora",
+        "il nora":      "inora",
+        "a nora":       "inora",
+        "enora":        "inora",
+        # Commandes
+        "reads":        "read",
+        "stops":        "stop",
+        "repeats":      "repeat",
+        "repeated":     "repeat",
+        "activated":    "activate",
+        "deactivated":  "deactivate",
+    }
+
     def _load_model(self, lang: str):
         try:
             model_path = MODEL_PATHS.get(lang)
@@ -142,6 +182,20 @@ class INORAVoice:
         except Exception as e:
             log.error(f"Impossible de charger Vosk : {e}")
             self._ready = False
+
+    def _correct_phonetics(self, text: str) -> str:
+        """
+        Corrige les erreurs phonétiques courantes de Vosk.
+        Cherche les variantes connues dans le texte et les remplace
+        par le mot correct avant l'analyse des commandes.
+        """
+        corrections = self.PHONETIC_FR if self.lang == "fr" else self.PHONETIC_EN
+        corrected = text
+        for wrong, right in corrections.items():
+            if wrong in corrected:
+                corrected = corrected.replace(wrong, right)
+                log.debug(f"Correction phonétique : {wrong!r} → {right!r}")
+        return corrected
 
     # ── API publique ─────────────────────────────────────────────────────────
 
@@ -194,7 +248,6 @@ class INORAVoice:
             blocksize=self.BLOCK_SIZE,
             dtype="int16",
             channels=1,
-            device=2,
             callback=audio_callback,
         ):
             log.info("Micro actif — en écoute...")
@@ -216,10 +269,13 @@ class INORAVoice:
     def _handle_text(self, text: str):
         """
         Analyse le texte reconnu et décide de l'action :
-          1. Cherche une commande fixe mot par mot
-          2. Si en mode wake → envoie comme langage naturel
-          3. Si mot-clé "inora" → active le mode wake
+          1. Corrige les erreurs phonétiques connues
+          2. Cherche une commande fixe mot par mot
+          3. Si en mode wake → envoie comme langage naturel
+          4. Si mot-clé "inora" → active le mode wake
         """
+        # Correction phonétique avant analyse
+        text     = self._correct_phonetics(text)
         commands = COMMANDS_FR if self.lang == "fr" else COMMANDS_EN
         words    = text.split()
 

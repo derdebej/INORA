@@ -47,7 +47,7 @@ class INORAOcr:
         lang: str = "en",
         confidence_threshold: float = 0.9,   # seuil de confiance élevé
         stability_frames: int = 5,            # frames consécutives requises
-        stability_duration: float = 10.0,     # secondes de stabilité requises
+        stability_duration: float = 2.0,     # secondes de stabilité requises
         repeat_delay: float = 10.0,           # secondes avant de répéter
     ):
         """

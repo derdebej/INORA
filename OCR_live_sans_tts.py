@@ -12,6 +12,16 @@ log = logging.getLogger("TEST_OCR")
 
 ocr = PaddleOCR(lang='en', use_doc_orientation_classify=False, use_doc_unwarping=False, use_textline_orientation=False)
 cap = cv2.VideoCapture(1)
+def polygon_area(points):
+                area = 0
+                n = len(points)
+                
+                for i in range(n):
+                    x1, y1 = points[i]
+                    x2, y2 = points[(i + 1) % n]
+                    area += x1 * y2 - x2 * y1
+                
+                return abs(area) / 2
 
 while True:
     ret, frame = cap.read()
@@ -28,12 +38,17 @@ while True:
     annotated_path = tmp_path + "_out.jpg"
     results[0].save_to_img(annotated_path)
 
-    if results:  
+    if results:
+        i = 0  
         for res in results:
             data       = res.json.get("res", {})
             rec_texts  = data.get("rec_texts", [])
-            if rec_texts:
+
+            areas = [polygon_area(rect) for rect in data["dt_polys"]]
+            if rec_texts and i == 0:
+                log.debug(areas)
                 log.debug(rec_texts)
+                i = i+1
 
     # Load annotated image with OpenCV
     frame_out = cv2.imread(annotated_path)

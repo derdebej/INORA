@@ -38,7 +38,7 @@ CONFIG = {
     "lang":             "fr",    # langue OCR + TTS + voix : "fr" ou "en"
     "camera_index":     1,       # 0 = webcam par défaut
     "ocr_confidence":   0.8,     # seuil de confiance OCR (0.0 à 1.0)
-    "ocr_repeat_delay": 10.0,    # secondes avant de répéter le même texte
+    "ocr_repeat_delay": 20.0,    # secondes avant de répéter le même texte
     "show_window":      True,    # afficher la fenêtre caméra annotée
     "interrupt_key":    "s",     # touche S → interrompt TTS
     "toggle_key":       "t",     # touche T → active/désactive TTS
