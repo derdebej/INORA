@@ -61,7 +61,6 @@ import torch
 import numpy as np
 from ultralytics import YOLO
 from depth_anything_v2.dpt import DepthAnythingV2
-from IPython.display import HTML
 from base64 import b64encode
 import time
 
