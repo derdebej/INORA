@@ -4,7 +4,7 @@ import cv2
 from ultralytics import YOLO
 
 #tekteb path lmodele bin "" w hoto fi nafs lfolder maa lcode
-model = YOLO("banknotes.pt")  
+model = YOLO("banknotes.pt")
 # dictionnaire hatina fih l2alwen li bech ycadri bihom kol classe
 colors = {
     "5":  (0, 200, 0),
@@ -16,7 +16,6 @@ colors = {
 cap = cv2.VideoCapture(0)
 
 print("Camera opened! Press Q to quit.\n")
-
 last_total  = -1
 last_counts = {}
 
