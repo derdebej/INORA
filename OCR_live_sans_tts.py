@@ -1,7 +1,10 @@
+import os
+os.environ["FLAGS_use_mkldnn"] = "0"
+os.environ["GLOG_minloglevel"] = "3"
+
 import cv2
 from paddleocr import PaddleOCR
 import tempfile
-import os
 import logging
 
 logging.basicConfig(
@@ -11,7 +14,7 @@ logging.basicConfig(
 log = logging.getLogger("TEST_OCR")
 
 ocr = PaddleOCR(lang='en', use_doc_orientation_classify=False, use_doc_unwarping=False, use_textline_orientation=False)
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 
 while True:
     ret, frame = cap.read()

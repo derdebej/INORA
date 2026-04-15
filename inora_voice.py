@@ -194,7 +194,7 @@ class INORAVoice:
             blocksize=self.BLOCK_SIZE,
             dtype="int16",
             channels=1,
-            device=2,
+            device=None,
             callback=audio_callback,
         ):
             log.info("Micro actif — en écoute...")
