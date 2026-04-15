@@ -11,6 +11,7 @@ Stabilisation :
 
 Installation :
   pip install paddleocr opencv-python
+  pip install paddlepaddle-gpu
 """
 
 import os
