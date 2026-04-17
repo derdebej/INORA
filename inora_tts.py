@@ -33,7 +33,7 @@ PRIORITY_LOW    = 3
 # Chemins des modèles piper — à adapter si placés ailleurs
 MODEL_PATHS = {
     "fr": "fr_FR-siwis-medium.onnx",
-    "en": "en_US-jenny-medium.onnx",
+    "en": "en_US-lessac-medium.onnx",
 }
 
 

@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import torch; print\\('PyTorch:', torch.__version__\\); print\\('CUDA available:', torch.cuda.is_available\\(\\)\\); print\\('CUDA version:', torch.version.cuda\\); print\\('cuDNN:', torch.backends.cudnn.version\\(\\) if torch.cuda.is_available\\(\\) else 'N/A'\\)\")",
+      "Bash(pip show:*)",
+      "Bash(pip list:*)",
+      "Bash(nvidia-smi)",
+      "Bash(pip --version)",
+      "Bash(pip install:*)",
+      "Bash(C:\\\\Users\\\\MSI\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python310\\\\python.exe -m pip install --upgrade pip)",
+      "Bash(python -m pip install --upgrade pip)",
+      "Bash(\"C:/Users/MSI/AppData/Local/Programs/Python/Python310/python.exe\" -c \"import torch; print\\('PyTorch:', torch.__version__\\); print\\('CUDA available:', torch.cuda.is_available\\(\\)\\)\")",
+      "Bash(python -c \"import struct; print\\('Python bits:', struct.calcsize\\('P'\\)*8\\); import sys; print\\('Python path:', sys.executable\\); print\\('Python version:', sys.version\\)\")",
+      "Bash(\"C:/Users/MSI/AppData/Local/Programs/Python/Python310/python.exe\" -c \"import torch; print\\('PyTorch:', torch.__version__\\); print\\('CUDA:', torch.cuda.is_available\\(\\)\\); print\\('GPU:', torch.cuda.get_device_name\\(0\\) if torch.cuda.is_available\\(\\) else 'N/A'\\)\")",
+      "Bash(\"C:/Users/MSI/AppData/Local/Programs/Python/Python310/python.exe\" -c \"import cv2; print\\('cv2 ok:', cv2.__version__\\)\")",
+      "Bash(\"C:/Users/MSI/AppData/Local/Programs/Python/Python310/python.exe\" -c \"from paddleocr import PaddleOCR; print\\('paddleocr ok'\\)\")",
+      "Bash(\"C:/Users/MSI/AppData/Local/Programs/Python/Python310/python.exe\" -m pip install vosk)",
+      "Bash(\"C:/Users/MSI/AppData/Local/Programs/Python/Python310/python.exe\" -m pip list)",
+      "Bash(\"C:/Users/MSI/AppData/Local/Programs/Python/Python310/python.exe\" -m pip index versions piper-tts)",
+      "Bash(\"C:/Users/MSI/AppData/Local/Programs/Python/Python310/python.exe\" -m pip install \"espeakng-loader==0.1.51.0\")",
+      "Bash(\"C:/Users/MSI/AppData/Local/Programs/Python/Python310/python.exe\" -m pip install piper-tts --no-deps)",
+      "Bash(\"C:/Users/MSI/AppData/Local/Programs/Python/Python310/python.exe\" -m pip install piper-tts)",
+      "Bash(\"C:/Users/MSI/AppData/Local/Programs/Python/Python310/python.exe\" -m venv \"c:/Users/MSI/Desktop/INORA/venv\")",
+      "Bash(\"c:/Users/MSI/Desktop/INORA/venv/Scripts/python.exe\" -m pip show paddlepaddle paddleocr)",
+      "Bash(\"c:/Users/MSI/Desktop/INORA/venv/Scripts/python.exe\" -m pip list)",
+      "Bash(\"c:/Users/MSI/Desktop/INORA/venv/Scripts/python.exe\" -m pip install paddlepaddle-gpu==3.0.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu123/)",
+      "Bash(\"c:/Users/MSI/Desktop/INORA/venv/Scripts/python.exe\" -m pip install paddlepaddle-gpu==3.0.0rc1 -i https://www.paddlepaddle.org.cn/packages/stable/cu123/)",
+      "Bash(findstr paddle *)",
+      "Bash(\"c:/Users/MSI/Desktop/INORA/venv/Scripts/python.exe\" -c \"import sounddevice as sd; print\\(sd.query_devices\\(\\)\\)\")",
+      "Bash(findstr piper *)",
+      "Bash(findstr espeakng *)",
+      "Bash(\"c:/Users/MSI/Desktop/INORA/venv/Scripts/python.exe\" -m pip install \"espeakng-loader==0.1.51.0\")"
+    ]
+  }
+}

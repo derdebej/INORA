@@ -17,6 +17,7 @@ while True:
         tts.say_urgent(msg.get('obstacle_near', 'fr', dist=80))
     elif commande == 'ocr':
         texte = input('Texte OCR à lire : ')
+        tts.toggle()
         tts.say(msg.get('ocr_reading', 'fr', text=texte), priority='normal')
     elif commande == 'monnaie':
         tts.say(msg.get('coin_detected', 'fr', value='Pièce de deux euros'), priority='high')

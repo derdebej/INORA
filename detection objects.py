@@ -1,73 +1,25 @@
-# ============================================================
-# Cell 1 — Install + download
-# ============================================================
-!git clone https://github.com/DepthAnything/Depth-Anything-V2 -q
-%cd Depth-Anything-V2/metric_depth
-!pip install -r requirements.txt -q
-!pip install ultralytics huggingface_hub -q
+import os, sys
 
-import os, shutil
-from huggingface_hub import hf_hub_download
-
-path = hf_hub_download(
-    repo_id="depth-anything/Depth-Anything-V2-Metric-VKITTI-Small",
-    filename="depth_anything_v2_metric_vkitti_vits.pth",
-)
-os.makedirs('/content/Depth-Anything-V2/metric_depth/checkpoints', exist_ok=True)
-shutil.copy(path, '/content/Depth-Anything-V2/metric_depth/checkpoints/depth_anything_v2_metric_vkitti_vits.pth')
-
-size = os.path.getsize('/content/Depth-Anything-V2/metric_depth/checkpoints/depth_anything_v2_metric_vkitti_vits.pth')
-print(f"✅ Downloaded! File size: {size/1e6:.1f} MB")
-
-# ============================================================
-# Run this ONCE to patch the root dpt.py
-# ============================================================
-import subprocess
-result = subprocess.run(
-    ['python', '-c', 'from depth_anything_v2.dpt import DepthAnythingV2; import inspect; print(inspect.getfile(DepthAnythingV2))'],
-    capture_output=True, text=True,
-    cwd='/content/Depth-Anything-V2/metric_depth'
-)
-print(result.stdout)
-
-# Copy metric_depth dpt.py over root dpt.py
-import shutil
-shutil.copy(
-    '/content/Depth-Anything-V2/metric_depth/depth_anything_v2/dpt.py',
-    '/content/Depth-Anything-V2/depth_anything_v2/dpt.py'
-)
-print("✅ Patched!")
-
-import sys
-# Remove any cached depth_anything_v2 modules
-keys_to_remove = [k for k in sys.modules if 'depth_anything' in k]
-for k in keys_to_remove:
-    del sys.modules[k]
-
-sys.path.insert(0, '/content/Depth-Anything-V2/metric_depth')
-
-# ============================================================
-# Cell 2 — Full optimized video code
-# ============================================================
-import os
-os.environ['PYTORCH_ALLOC_CONF'] = 'expandable_segments:True'
-
-import sys
-# ← critical: import from metric_depth subfolder, not root
-sys.path.insert(0, '/content/Depth-Anything-V2/metric_depth')
+BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
+METRIC_DIR = os.path.join(BASE_DIR, 'Depth-Anything-V2', 'metric_depth')
+sys.path.insert(0, METRIC_DIR)
 
 import cv2
 import torch
 import numpy as np
 from ultralytics import YOLO
 from depth_anything_v2.dpt import DepthAnythingV2
-from base64 import b64encode
 import time
 
+# ── Device ────────────────────────────────────────────────────
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+print(f"Using device: {DEVICE}")
+
 # ── Paths ─────────────────────────────────────────────────────
-WEIGHTS_PATH = '/content/best.pt'
-VIDEO_PATH   = '/content/test.mp4'
-OUTPUT_PATH  = '/content/output.mp4'
+WEIGHTS_PATH  = os.path.join(BASE_DIR, 'best.pt')
+VIDEO_PATH    = os.path.join(BASE_DIR, 'test.mp4')
+OUTPUT_PATH   = os.path.join(BASE_DIR, 'output.mp4')
+DEPTH_WEIGHTS = os.path.join(METRIC_DIR, 'checkpoints', 'depth_anything_v2_metric_vkitti_vits.pth')
 
 # ── Constants ─────────────────────────────────────────────────
 CONF_THRESHOLD = 0.4
@@ -75,27 +27,24 @@ MAX_DIST       = 20.0
 IGNORE_CLASSES = ['']
 DEPTH_EVERY_N  = 5
 INPUT_WIDTH    = 512
-INPUT_HEIGHT   =512
+INPUT_HEIGHT   = 512
 
-# ── Load Depth-Anything-V2 vits on GPU ────────────────────────
-print("⏳ Loading Depth-Anything-V2 vits...")
+# ── Load Depth-Anything-V2 ────────────────────────────────────
+print("Loading Depth-Anything-V2...")
 depth_model = DepthAnythingV2(
     encoder='vits',
     features=64,
     out_channels=[48, 96, 192, 384],
-    max_depth=80  # 80 for outdoor (vkitti)
+    max_depth=80
 )
-depth_model.load_state_dict(torch.load(
-    '/content/Depth-Anything-V2/metric_depth/checkpoints/depth_anything_v2_metric_vkitti_vits.pth',
-    map_location='cuda'
-))
-depth_model.eval().cuda()
-print(f"✅ Depth model loaded | VRAM: {torch.cuda.memory_allocated()/1e9:.1f}GB")
+depth_model.load_state_dict(torch.load(DEPTH_WEIGHTS, map_location=DEVICE))
+depth_model.eval().to(DEVICE)
+print("Depth model loaded.")
 
-# ── Load YOLO on GPU ──────────────────────────────────────────
-print("⏳ Loading YOLO...")
+# ── Load YOLO ─────────────────────────────────────────────────
+print("Loading YOLO...")
 det_model = YOLO(WEIGHTS_PATH)
-print(f"✅ YOLO loaded | VRAM: {torch.cuda.memory_allocated()/1e9:.1f}GB")
+print("YOLO loaded.")
 
 # ── Video setup ───────────────────────────────────────────────
 cap     = cv2.VideoCapture(VIDEO_PATH)
@@ -108,7 +57,7 @@ writer  = cv2.VideoWriter(
     cv2.VideoWriter_fourcc(*'mp4v'),
     fps, (frame_w, frame_h)
 )
-print(f"📹 {frame_w}x{frame_h} @ {fps}fps — {total} frames")
+print(f"{frame_w}x{frame_h} @ {fps}fps — {total} frames")
 
 # ── Depth inference ───────────────────────────────────────────
 def get_depth_map(frame):
@@ -116,7 +65,8 @@ def get_depth_map(frame):
     with torch.no_grad():
         depth = depth_model.infer_image(small)
     depth = cv2.resize(depth, (frame_w, frame_h))
-    torch.cuda.empty_cache()
+    if DEVICE == 'cuda':
+        torch.cuda.empty_cache()
     return depth
 
 # ── Main loop ─────────────────────────────────────────────────
@@ -136,8 +86,8 @@ while True:
 
     results = det_model.predict(
         frame, conf=CONF_THRESHOLD,
-        device=0, verbose=False,
-        imgsz=640
+        device=0 if DEVICE == 'cuda' else 'cpu',
+        verbose=False, imgsz=640
     )[0]
 
     for box in results.boxes:
@@ -170,14 +120,12 @@ while True:
         elapsed   = time.time() - t_start
         fps_real  = frame_count / elapsed
         remaining = (total - frame_count) / fps_real if fps_real > 0 else 0
-        print(f"⏳ Frame {frame_count}/{total} | "
-            f"{fps_real:.1f} fps | "
-            f"~{remaining/60:.1f} min remaining | "
-            f"VRAM: {torch.cuda.memory_allocated()/1e9:.1f}GB")
+        print(f"Frame {frame_count}/{total} | {fps_real:.1f} fps | ~{remaining/60:.1f} min remaining")
 
     writer.write(frame)
 
 cap.release()
 writer.release()
 total_time = time.time() - t_start
-print(f"✅ Done! {frame_count} frames in {total_time/60:.1f} minutes")
+print(f"Done! {frame_count} frames in {total_time/60:.1f} minutes")
+print(f"Output saved to: {OUTPUT_PATH}")

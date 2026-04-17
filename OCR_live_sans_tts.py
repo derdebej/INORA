@@ -1,7 +1,10 @@
+import os
+os.environ["FLAGS_use_mkldnn"] = "0"
+os.environ["GLOG_minloglevel"] = "3"
+
 import cv2
 from paddleocr import PaddleOCR
 import tempfile
-import os
 import logging
 
 logging.basicConfig(
@@ -12,16 +15,6 @@ log = logging.getLogger("TEST_OCR")
 
 ocr = PaddleOCR(lang='en', use_doc_orientation_classify=False, use_doc_unwarping=False, use_textline_orientation=False)
 cap = cv2.VideoCapture(1)
-def polygon_area(points):
-                area = 0
-                n = len(points)
-                
-                for i in range(n):
-                    x1, y1 = points[i]
-                    x2, y2 = points[(i + 1) % n]
-                    area += x1 * y2 - x2 * y1
-                
-                return abs(area) / 2
 
 while True:
     ret, frame = cap.read()

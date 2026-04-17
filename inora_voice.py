@@ -153,27 +153,23 @@ class INORAVoice:
     # ── Boucle d'écoute ──────────────────────────────────────────────────────
 
     def _listen_loop(self):
-        """Enregistre et transcrit en boucle continue."""
-        log.info("Micro actif — en écoute...")
-        while not self._stop_event.is_set():
-            try:
-                # Enregistrement
-                audio = sd.rec(
-                    int(RECORD_SECONDS * SAMPLE_RATE),
-                    samplerate=SAMPLE_RATE,
-                    channels=1,
-                    dtype="float32",
-                    device=2,
-                )
-                sd.wait()
+        """Capture audio + reconnaissance en continu."""
+        def audio_callback(indata, frames, time_info, status):
+            self._audio_queue.put(bytes(indata))
 
-                if self._stop_event.is_set():
-                    break
-
-                audio = audio.flatten()
-
-                # Ignore si trop silencieux
-                if np.abs(audio).mean() < 0.002:
+        with sd.RawInputStream(
+            samplerate=self.SAMPLE_RATE,
+            blocksize=self.BLOCK_SIZE,
+            dtype="int16",
+            channels=1,
+            device=2,
+            callback=audio_callback,
+        ):
+            log.info("Micro actif — en écoute...")
+            while not self._stop_event.is_set():
+                try:
+                    data = self._audio_queue.get(timeout=0.5)
+                except queue.Empty:
                     continue
 
                 # Transcription Whisper
