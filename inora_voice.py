@@ -13,6 +13,7 @@ Utilisation :
   voice.start()
 """
 
+import queue
 import threading
 import time
 import logging
@@ -25,10 +26,11 @@ log = logging.getLogger("INORA_VOICE")
 # ─────────────────────────────────────────────────────────────────────────────
 # Configuration
 # ─────────────────────────────────────────────────────────────────────────────
-SAMPLE_RATE   = 16000
+SAMPLE_RATE    = 16000
 RECORD_SECONDS = 3      # durée d'enregistrement par cycle
-MIC_DEVICE    = 2       # device ID du micro — changer si nécessaire
-MODEL_SIZE    = "small" # tiny / base / small / medium
+BLOCK_SIZE     = SAMPLE_RATE * RECORD_SECONDS  # FIX: défini ici au niveau module
+MIC_DEVICE     = 0       # device ID du micro — changer si nécessaire
+MODEL_SIZE     = "small" # tiny / base / small / medium
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Commandes reconnues
@@ -102,6 +104,7 @@ class INORAVoice:
         self._last_text      = ""
         self._model          = None
         self._ready          = False
+        self._audio_queue    = queue.Queue()  # FIX: initialisé ici
 
         self._load_model()
 
@@ -158,36 +161,40 @@ class INORAVoice:
             self._audio_queue.put(bytes(indata))
 
         with sd.RawInputStream(
-            samplerate=self.SAMPLE_RATE,
-            blocksize=self.BLOCK_SIZE,
+            samplerate=SAMPLE_RATE,        # FIX: constante module, pas self.SAMPLE_RATE
+            blocksize=BLOCK_SIZE,          # FIX: constante module, pas self.BLOCK_SIZE
             dtype="int16",
             channels=1,
-            device=2,
+            device=MIC_DEVICE,
             callback=audio_callback,
         ):
             log.info("Micro actif — en écoute...")
             while not self._stop_event.is_set():
-                try:
+                try:                       # FIX: bloc try/except correctement placé
                     data = self._audio_queue.get(timeout=0.5)
                 except queue.Empty:
                     continue
 
-                # Transcription Whisper
-                result = self._model.transcribe(
-                    audio,
-                    language=self.lang,
-                    fp16=False,
-                    condition_on_previous_text=False,
-                )
-                text = result["text"].strip().lower()
+                try:
+                    # FIX: conversion bytes → float32 numpy array attendu par Whisper
+                    audio = np.frombuffer(data, dtype=np.int16).astype(np.float32) / 32768.0
 
-                if text:
-                    log.info(f"Reconnu : {text!r}")
-                    self._handle_text(text)
+                    # Transcription Whisper
+                    result = self._model.transcribe(
+                        audio,
+                        language=self.lang,
+                        fp16=False,
+                        condition_on_previous_text=False,
+                    )
+                    text = result["text"].strip().lower()
 
-            except Exception as e:
-                log.error(f"Erreur écoute : {e}")
-                time.sleep(0.5)
+                    if text:
+                        log.info(f"Reconnu : {text!r}")
+                        self._handle_text(text)
+
+                except Exception as e:
+                    log.error(f"Erreur écoute : {e}")
+                    time.sleep(0.5)
 
     # ── Traitement ───────────────────────────────────────────────────────────
 
