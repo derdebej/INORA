@@ -26,7 +26,7 @@ ocr = PaddleOCR(
     use_textline_orientation=False,
 )
 
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 print("\nCaméra ouverte. Montre un texte devant la caméra.")
 print("Appuie sur ESPACE pour capturer et analyser.")
 print("Appuie sur Q pour quitter.\n")

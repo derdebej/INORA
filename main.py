@@ -38,7 +38,7 @@ CONFIG = {
     "lang":             "fr",    # langue OCR + TTS + voix : "fr" ou "en"
     "camera_index":     1,       # 0 = webcam par défaut
     "ocr_confidence":   0.8,     # seuil de confiance OCR (0.0 à 1.0)
-    "ocr_repeat_delay": 20.0,    # secondes avant de répéter le même texte
+    "ocr_repeat_delay": 10.0,    # secondes avant de répéter le même texte
     "show_window":      True,    # afficher la fenêtre caméra annotée
     "interrupt_key":    "s",     # touche S → interrompt TTS
     "toggle_key":       "t",     # touche T → active/désactive TTS
@@ -141,20 +141,23 @@ def make_command_handler(tts: INORASpeaker, ocr: INORAOcr, voice: INORAVoice):
             time.sleep(2)
             import os; os._exit(0)
 
+        elif action == "what_do_you_see":
+            last = ocr._last_sent
+            tts._enabled = True
+            if last:
+                tts.say(INORAMessages.get("ocr_reading", lang, text=last), priority="high")
+            else:
+                tts.say("Je ne vois rien pour le moment" if lang == "fr" else "I don't see anything", priority="normal")
+
+        elif action == "what_time":
+            tts._enabled = True
+            tts.say(time.strftime("Il est %H heures %M") if lang == "fr" else time.strftime("It is %H:%M"), priority="normal")
+
         elif action == "natural":
-            # Cherche une correspondance dans les réponses naturelles
-            phrase_clean = phrase.lower().strip()
-            matched = False
-            for key, fn in NATURAL_RESPONSES_FR.items():
-                if key in phrase_clean:
-                    tts._enabled = True
-                    fn()
-                    matched = True
-                    break
-            if not matched:
-                # Commande non reconnue
-                response = "Je n'ai pas compris" if lang == "fr" else "I didn't understand"
-                tts.say(response, priority="normal")
+            # Phrase non reconnue après mot-clé INORA
+            response = "Je n'ai pas compris" if lang == "fr" else "I didn't understand"
+            tts._enabled = True
+            tts.say(response, priority="normal")
 
     return handle
 
@@ -270,16 +273,21 @@ def main():
 # Intégration modules camarades
 # ─────────────────────────────────────────────────────────────────────────────
 # from inora_obstacle import INORAObstacle
-# from inora_currency import INORACurrency
+# from inora_currency import INORACurrency   ← décommenter quand prêt
 #
-# Dans la boucle while :
+# Dans __init__ :
+#   currency = INORACurrency(lang=lang)
+#
+# Dans la boucle while, après le bloc OCR :
+#   result = currency.process(frame)
+#   if result:
+#       tts.say(result["tts_message"], priority="high")
+#       annotated_frame = result["frame"]   # affiche les boîtes de détection
+#
+# Obstacle :
 #   direction, dist = obstacle.process(frame)
 #   if direction:
 #       tts.say_urgent(INORAMessages.get(f"obstacle_{direction}", lang, dist=dist))
-#
-#   coin = currency.process(frame)
-#   if coin:
-#       tts.say(INORAMessages.get("coin_detected", lang, value=coin), priority="high")
 
 
 if __name__ == "__main__":
