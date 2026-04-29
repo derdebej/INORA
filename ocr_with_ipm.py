@@ -201,7 +201,9 @@ def main():
         # Charger l'image annotée PaddleOCR et la combiner
         paddle_out = cv2.imread(annotated_path)
         if paddle_out is not None:
-            # Superposer les annotations IPM sur l'image PaddleOCR
+            # Forcer la même taille que display_frame (PaddleOCR peut redimensionner)
+            if paddle_out.shape != display_frame.shape:
+                paddle_out = cv2.resize(paddle_out, (display_frame.shape[1], display_frame.shape[0]))
             alpha = 0.6
             combined = cv2.addWeighted(paddle_out, alpha, display_frame, 1 - alpha, 0)
         else:
