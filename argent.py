@@ -6,7 +6,7 @@ from ultralytics import YOLO
 # ═══════════════════════════════════════════════════════
 #  CONFIG
 # ═══════════════════════════════════════════════════════
-MODEL_PATH = "best (15).pt"   # ← path to your downloaded best.pt
+MODEL_PATH = "money_detect.pt"   # ← path to your downloaded best.pt
 SOURCE     = 0            # ← 0 for default webcam, 1 for external camera
 CONF       = 0.35         # ← confidence threshold
 IOU        = 0.45         # ← NMS threshold
